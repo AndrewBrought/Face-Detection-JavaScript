@@ -1,20 +1,40 @@
-const video = document.getElementById('video');
+const video = document.getElementById('video')
 
-// This is linking the const "video" with the id 'video' that we established in the body of our html...that will allow us to send our dynamically created html to a specific location in our html
+Promise.all([
+    faceapi.nets.tinyFaceDetector.loadFromUri('../models'),
+    faceapi.nets.faceLandmark68Net.loadFromUri('../models'),
+    faceapi.nets.faceRecognitionNet.loadFromUri('../models'),
+    faceapi.nets.faceExpressionNet.loadFromUri('../models'),
+]).then(startVideo)
 
+function startVideo() {
+let constraints = { audio: false, video: { width: 720, height: 560 } };
+navigator.mediaDevices.getUserMedia(constraints)
+    .then(function(mediaStream) {
+        var video = document.querySelector('video');
+        video.srcObject = mediaStream;
+        video.onloadedmetadata = function(e) {
+            video.play();
+        };
+    })
+    .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
 
-//This will allow us to hook up our webcam to our video element
-    function startVideo() {
+}
 
-        navigator.mediaDevices.getUserMedia(
-            { video: {} },
-            stream => video.srcObject = stream,
-            err => console.error(err) //This is an error-log
-        )
-    }
-// What's going on with the function above:
-//This is how we target our native devices (cameras, audio, etc) on the web browser.  It takes an object as the first parameter - which states what media element we're targeting { video: {} }
-// Then we add a method underneath  - stream - this is what's coming from our webcam, and we want to set that as the source of our video...SOo, we set the video src object equal to that stream
-//Then we're adding an error function so that if we do get an error we can log it and see what's going on
+video.addEventListener('playing', () => {
+    const canvas = faceapi.createCanvasFromMedia(video)
+    document.body.append(canvas)
+    const displaySize = { width: video.width, height: video.height}
+    faceapi.matchDimensions(canvas, displaySize)
+    setInterval(async () => {
+        const detections = await faceapi.detectAllFaces(video,
+        new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceExpressions()
+        // console.log(detections)
+        const resizedDetections = faceapi.resizeResults(detections, displaySize)
+        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
+        faceapi.draw.drawDetections(canvas, resizedDetections)
+        faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
+        faceapi.draw.drawFaceExpressions(canvas, resizedDetections)
+    }, 100)
+})
 
-startVideo(); //We're activating the function here by calling it globally
